@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+    text {
+        font: 10px sans-serif;
+    }
+
+    section {
+        position: relative;
+        width: 30%;
+        border: 1px solid;
+    }
+
+    .chart {
+        float: right;
+        border: 1px solid;
+    }
+</style>
+<body>
+<h3>Bubble Chart View of a Zip File</h3>
+
+<div class="chart" name="" chart></div>
+<section>
+    <p>Thanks <a href="https://github.com/Stuk/jszip">JSZIP</a> for making this easy</p>
+    <script src="./js/jquery-1.11.1.min.js" charset="utf-8"></script>
+    <script src="./js/d3.v3.min.js" charset="utf-8"></script>
+    <script src="./js/jszip.js" type="text/javascript"></script>
+
+    <form>
+
+    Extensions to Hide: <input type="text" id="extensions">  (comma separated)
+    <p></p>
+    <label for="inputFile">Select a Zip File:</label>
+    <input id="inputFile" type="file" accept=".zip" onchange="inputFileChanged();this.value = null"><br/>
+    </form>
+</section>
+<script>
+var diameter = 900,
+        format = d3.format(",d"),
+        color = d3.scale.category20();
+
+var bubble = d3.layout.pack()
+        .sort(null)
+        .size([diameter, diameter])
+        .padding(1.5);
+
+var svg = d3.select(".chart").append("svg")
+        .attr("width", diameter)
+        .attr("height", diameter)
+        .attr("class", "bubble");
+
+var hideExtensions = [];
+
+
+function inputFileChanged() {
+
+    console.log("Zip File Selected");
+    svg.selectAll(".node").remove();
+    loadExtenstionToHide();
+
+    var inputFile = document.getElementById("inputFile");
+    var zipFileToLoad = inputFile.files[0];
+    var fileReader = new FileReader();
+
+    fileReader.onload = function (fileLoadedEvent) {
+        var zipFile = new JSZip(fileLoadedEvent.target.result);
+
+        var rows = buildRows(zipFile);
+        console.log("added " + rows.length + " entries");
+
+        // wrap it for the bubble graph
+        rows = {children: rows};
+
+
+        node = svg.selectAll(".node");
+        update(rows);
+    }
+    fileReader.readAsArrayBuffer(zipFileToLoad);
+
+}
+
+function update(rows) {
+    var node = svg.selectAll(".node")
+            .data(bubble.nodes(rows)
+                    .filter(function (d) {
+                        return !d.children;
+                    }))
+            .enter().append("g")
+            .attr("class", "node")
+            .attr("transform", function (d) {
+                return "translate(" + d.x + "," + d.y + ")";
+            });
+
+    node.append("title")
+            .text(function (d) {
+                return d.entryName + " - " + format(d.value);
+            });
+
+    node.append("circle")
+            .attr("r", function (d) {
+                return d.r;
+            })
+            .style("fill", function (d) {
+                var ext = getExtension(d.entryName);
+                return color(ext);
+            });
+
+    node.append("text")
+            .attr("dy", ".3em")
+            .style("text-anchor", "middle")
+            .text(function (d) {
+                return d.entryName.substring(0, d.r / 3);
+            });
+}
+
+// build rows one for each class and package in the jar
+function buildRows(zipfile) {
+    var rows = [];
+    if (zipfile != null) {
+        for (var fileName in zipfile.files) {
+            var file = zipfile.file(fileName);
+            var nodeSize = getNodeSize(file);
+            addRow(rows, fileName, nodeSize);
+        }
+    }
+    return rows;
+}
+
+// add a row [] of type, name and size
+function addRow(rows, fileName, nodeSize) {
+    console.log("Checking " + fileName);
+    if (fileName == null || fileName.length == 0) {
+        return;
+    }
+
+    // check for other filters
+    if (!showFile(fileName)) {
+        return;
+    }
+
+    var path = trimTrailingSlash(fileName);
+    if (path == null) {
+        return;
+    }
+
+    var nodeName = getNodeName(fileName);
+    if (nodeName == null) {
+        return;
+    }
+    rows.push({entryName: nodeName, value: nodeSize});
+}
+
+
+function trimTrailingSlash(name) {
+    var newName = name;
+    if (newName.substr(-1) == ("/")) {
+        newName = newName.substring(0, newName.length - 1);
+    }
+    return newName;
+}
+
+function getNodeName(fileName) {
+    return fileName;
+}
+
+function getNodeSize(file) {
+    var size = 2045;
+    if (file != null) {
+        size = file._data.uncompressedSize;
+        size = (size < 2045) ? 2045 : size;
+    }
+    return size;
+}
+
+function getExtension(fileName) {
+    var pos = fileName.lastIndexOf('.');
+    pos = (pos < 0) ? 0 : pos;
+    return  fileName.substring(pos + 1);
+}
+
+function showFile(fileName) {
+    var ext = getExtension(fileName);
+    if (hideExtensions.length == 0) {
+        return true;
+    } else {
+        var index = hideExtensions.indexOf(ext)
+        return index == -1;
+    }
+}
+
+function loadExtenstionToHide() {
+    var hideExtensionString = $('#extensions').val();
+    hideExtensions = hideExtensionString.split(',');
+}
+
+d3.select(self.frameElement).style("height", diameter + "px");
+
+</script>
+</body>

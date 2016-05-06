@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+    text {
+        font: 10px sans-serif;
+    }
+</style>
+<title>Bubble Jar</title>
+<body>
+<h3>Bubble Chart of a Jar's Classes</h3>
+<p>
+<script src="./js/d3.v3.min.js" charset="utf-8"></script>
+<script src="./js/jszip.js" type="text/javascript"  ></script>
+<label for="inputFile">Select a Jar File:</label>
+<input id="inputFile" type="file" accept=".jar" onchange="inputFileChanged()"t>
+<br />
+Mouse over the class for more info
+<script>
+    var width = 1000, height = 700
+            format = d3.format(",d"),
+            color = d3.scale.category20c();
+
+    var bubble = d3.layout.pack()
+            .sort(null)
+            .size([width, height])
+            .padding(1.5);
+
+    var svg = d3.select("body").append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("class", "bubble");
+
+    function inputFileChanged(){
+        console.log("File Selected");
+        svg.selectAll(".node").remove();
+        svg.selectAll(".link").remove();
+
+        var inputFile = document.getElementById("inputFile");
+        var zipFileToLoad = inputFile.files[0];
+        var fileReader = new FileReader();
+
+        fileReader.onload = function(fileLoadedEvent)
+        {
+            var zipFile = new JSZip(fileLoadedEvent.target.result);
+            var rows = buildRows(zipFile);
+            console.log("added " + rows.length + " classes");
+            rows = {children:rows};
+            link = svg.selectAll(".link"),
+                    node = svg.selectAll(".node");
+            update(rows);
+        }
+        fileReader.readAsArrayBuffer(zipFileToLoad);
+    }
+
+    function update(rows){
+        var node = svg.selectAll(".node")
+                .data(bubble.nodes(rows)
+                        .filter(function (d) {
+                            return !d.children;
+                        }))
+                .enter().append("g")
+                .attr("class", "node")
+                .attr("transform", function (d) {
+                    return "translate(" + d.x + "," + d.y + ")";
+                });
+
+        node.append("title")
+                .text(function (d) {
+                    return d.packageName + "/" + d.className + " - " + format(d.value) + " bytes";
+                });
+
+        node.append("circle")
+                .attr("r", function (d) {
+                    return d.r;
+                })
+                .style("fill", function (d) {
+                    return color(d.packageName);
+                });
+
+        node.append("text")
+                .attr("dy", ".3em")
+                .style("text-anchor", "middle")
+                .text(function (d) {
+                    return d.className.substring(0, d.r / 3);
+                });
+    }
+
+    // build rows one for each class in the jar
+    function buildRows(zipfile) {
+        var rows = [];
+        if (zipfile != null) {
+            var nodesAdded = {};
+            for (var fileName in zipfile.files){
+                if(isClass(fileName)){
+                    var nodeSize = getNodeSize(fileName, zipfile);
+                    addRow(rows, fileName, nodeSize);
+                }
+            }
+        }
+        return rows;
+    }
+
+    // add a row for a class
+    function addRow(rows, fileName, nodeSize){
+
+        if(fileName == null || fileName.length == 0){
+            return;
+        }
+        var path = trimTrailingSlash(fileName);
+        if(path == null){
+            return;
+        }
+        var nodeName = getNodeName(fileName);
+        if (nodeName == null) {
+            return;
+        }
+
+        var parentPath = getParentPath(path);
+        parentPath = (parentPath == null)? path:parentPath;
+        var row = {packageName: parentPath, className: nodeName, value: nodeSize}
+        rows.push(row);
+    }
+
+
+    function trimTrailingSlash(name){
+        var newName = name;
+        if (newName.substr(-1) == ("/")) {
+            newName = newName.substring(0, newName.length - 1);
+        }
+        return newName;
+    }
+
+    function getNodeName(fileName){
+        var nodeName = fileName;
+        nodeName = nodeName.substring(0,nodeName.length-6);
+        return getLastPath(nodeName);
+    }
+
+    function getLastPath(path){
+        if(path == null){
+            return null;
+        }
+        var startPos = path.lastIndexOf("/");
+        startPos = (startPos == -1)? 0 : startPos+1;
+        path = path.substring(startPos, path.length);
+        return path;
+    }
+
+    function getParentPath(fileName) {
+        var path = fileName;
+        if(path == null){
+            return null;
+        }
+        path = trimTrailingSlash(path)
+        var posSlash = path.lastIndexOf("/");
+        if (posSlash > -1) {
+            path = path.substring(0, posSlash);
+        } else {
+            path = null;
+        }
+        return path;
+    }
+
+    function getNodeSize(fileName, zipfile){
+        var size = 2045;
+        var file = zipfile.file(fileName);
+        if(file != null){
+            size = file._data.uncompressedSize;
+            size = (size < 2045)? 2045 : size;
+        }
+        return size;
+    }
+
+    function isClass(fileName){
+        return fileName.substring(fileName.length-6,fileName.length) === ".class"
+    }
+
+    d3.select(self.frameElement).style("height", width + "px");
+
+</script>

@@ -25,16 +25,10 @@ Mouse over the class for more info
             .size([width, height])
             .padding(1.5);
 
-    var svg = d3.select("body").append("svg")
-            .attr("width", width)
-            .attr("height", height)
-            .attr("class", "bubble");
+    var svg;
 
     function inputFileChanged(){
         console.log("File Selected");
-        svg.selectAll(".node").remove();
-        svg.selectAll(".link").remove();
-
         var inputFile = document.getElementById("inputFile");
         var zipFileToLoad = inputFile.files[0];
         var fileReader = new FileReader();
@@ -42,6 +36,18 @@ Mouse over the class for more info
         fileReader.onload = function(fileLoadedEvent)
         {
             var zipFile = new JSZip(fileLoadedEvent.target.result);
+            
+            d3.select("body").append("div")
+            .attr("class","key_id")
+            .attr("id","key_line")
+            .style("background-color","#E9F0FC")
+            .text(zipFileToLoad.name);
+            
+             svg = d3.select("body").append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("class", "bubble");
+            
             var rows = buildRows(zipFile);
             console.log("added " + rows.length + " classes");
             rows = {children:rows};
